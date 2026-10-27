@@ -1,0 +1,33 @@
+name: Docker blog
+
+on:
+  push:
+    branches: [task_2]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-database-password
+      SECRET_KEY_BASE: ci-only-secret-key-base-0123456789abcdef0123456789abcdef0123456789abcdef
+      APP_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Build and start the application
+        run: docker compose up -d --build --wait
+      - name: Verify CRUD against PostgreSQL
+        run: docker compose run --rm -e RAILS_ENV=test web ./bin/rails db:prepare test
+      - name: Check Rails autoloading
+        run: docker compose exec -T web ./bin/rails zeitwerk:check
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop containers
+        if: always()
+        run: docker compose down

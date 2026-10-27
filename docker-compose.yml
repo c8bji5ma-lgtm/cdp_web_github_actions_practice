@@ -1,0 +1,44 @@
+name: docker-blog-task2
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: docker_blog
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: docker_blog_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docker_blog -d docker_blog_production"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: .
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}
+      POSTGRES_HOST: db
+      POSTGRES_USER: docker_blog
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      APP_HOST: ${APP_HOST:-localhost}
+      RAILS_FORCE_SSL: ${RAILS_FORCE_SSL:-false}
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:3000/up')).code == '200' ? 0 : 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: docker-blog-task2-postgres15-data
