@@ -50,16 +50,29 @@ docker compose up -d --force-recreate --wait
 
 ## EC2に配備
 
-新規作成用のCloudFormationテンプレートは`deploy/ec2.json`です。ARMの`t4g.micro` 1台、暗号化gp3 8 GiB、Elastic IP 1個、HTTPと作業元IPだけのSSHを設定します。既存VPCとインターネットゲートウェイへの経路を持つ公開サブネット、およびSSH公開鍵をパラメーターで指定します。CPUクレジットは`standard`です。インスタンスを終了するとルートディスク内のDBも削除されます。
+新規作成用のCloudFormationテンプレートは`deploy/ec2.json`です。ARMの`t4g.small` 1台（T4g無料トライアルを利用）、暗号化gp3 8 GiB、Elastic IP 1個、HTTPと作業元IPだけのSSHを設定します。既存VPCとインターネットゲートウェイへの経路を持つ公開サブネット、およびSSH公開鍵をパラメーターで指定します。CPUクレジットは`standard`です。インスタンスを終了するとルートディスク内のDBも削除されます。
 
 EC2上の専用フォルダーを使用し、Docker EngineとDocker Composeを用意します。AWSリソースの作成には、利用するアカウントと構成・費用の確認が必要です。
+
+T4g無料トライアルは2027年1月1日09:00（日本時間）まで、全リージョン合計で月750時間が対象です。EBSとElastic IPは別料金で、利用可能なAWSクレジットがある場合は残高から充当されます。トライアル終了後は通常料金になります。適用条件は[AWS公式FAQ](https://aws.amazon.com/ec2/faqs/)で確認してください。
 
 1. このソースをEC2の専用フォルダーへ配置します。
 2. EC2上で`.env`を用意し、ローカルとは別のランダム値を設定します。
 3. `APP_HOST`に公開DNS名または公開IP（スキーム・ポートなし）、`BIND_IP=0.0.0.0`、`PORT`に公開ポートを設定します。
 4. Security Groupで公開ポートを許可します。PostgreSQLの5432番ポートは公開不要です。
-5. `docker compose up -d --build --wait`で起動します。
+5. EC2上でビルドする場合は`docker compose up -d --build --wait`で起動します。MSI側で作成したARM64イメージを利用する場合は、次の手順を使用します。
 6. 公開URLで作成・一覧・詳細・更新・削除を確認し、コンテナ再作成後にも記事が残ることを確認します。
+
+ARM64イメージは作業PCで作成してEC2へ転送できます。EC2側のビルド用メモリやディスクの消費を抑える方法です。
+
+```bash
+# 作業PC（WSL）
+docker buildx build --platform linux/arm64 --load -t docker-blog-task2:aws .
+docker save docker-blog-task2:aws | gzip > docker-blog-image.tar.gz
+# ソースと上記ファイルをEC2へ転送後、EC2で実行
+gzip -dc docker-blog-image.tar.gz | docker load
+docker compose -f docker-compose.yml -f deploy/docker-compose.aws.yml up -d --no-build --wait
+```
 
 HTTPで直接公開する構成では`RAILS_FORCE_SSL=false`を使います。HTTPSを終端するリバースプロキシを別途用意した場合は`RAILS_FORCE_SSL=true`に設定します。`APP_HOST`を許可ホストとして登録し、異なるHostヘッダーは拒否します。
 

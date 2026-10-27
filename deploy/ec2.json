@@ -62,7 +62,7 @@
     "Instance": {
       "Type": "AWS::EC2::Instance",
       "Properties": {
-        "InstanceType": "t4g.micro",
+        "InstanceType": "t4g.small",
         "ImageId": {
           "Ref": "AmiId"
         },
